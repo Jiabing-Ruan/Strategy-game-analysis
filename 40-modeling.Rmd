@@ -1,0 +1,88 @@
+---
+title: "Modeling"
+output: html_notebook
+---
+### Modeling
+```{r}
+library(h2o)
+h2o.init(nthreads = -1, #Number of threads -1 means use all cores on your machine
+         max_mem_size = "8G")
+```
+
+Prepare data for machine learning
+```{r}
+games_h2o <- games %>% bind_cols(language_dummy)
+
+## drop useless columns and conduct feature engineering
+games_h2o <- games_h2o %>% 
+  mutate(in_app_purchases = if_else(is.na(in_app_purchases), 0,1),
+         user_rating_count_log10 = log10(user_rating_count),
+         Top = if_else(user_rating_count >= 2512, 1, 0)) %>%
+  select(Top, price, in_app_purchases, size_MB, age, release_year, ZH:KO)
+
+games_h2o <- as.h2o(games_h2o)
+```
+
+Split data
+```{r}
+games_h2o$Top = as.factor(games_h2o$Top)
+splits <- h2o.splitFrame(data = games_h2o, 
+                         ratios = c(0.7, 0.15),  #partition data into 70%, 15%, 15% chunks
+                         seed = 1)  #setting a seed will guarantee reproducibility
+train <- splits[[1]]
+valid <- splits[[2]]
+test <- splits[[3]]
+```
+
+```{r}
+nrow(train)  # 5314
+nrow(valid) # 1108
+nrow(test)  # 1139
+```
+
+```{r}
+y <- "Top"
+x <- setdiff(names(games_h2o), c(y))  #remove the interest rate column because it's correlated with the outcome
+print(y)
+print(x)
+```
+
+```{r}
+glm_fit1 <- h2o.glm(x = x, 
+                    y = y, 
+                    training_frame = train,
+                    model_id = "glm_fit1",
+                    validation_frame = valid,
+                    family = "binomial",
+                    lambda_search = TRUE)
+```
+
+
+
+```{r}
+glm_perf1 <- h2o.performance(model = glm_fit1,
+                             newdata = test)
+
+
+# Print model performance
+glm_perf1
+  #0.677449084114
+
+plot(glm_perf1,type='roc')
+```
+
+
+```{r}
+h2o.auc(glm_perf1)
+```
+
+
+
+```{r}
+# Compare test AUC to the training AUC and validation AUC
+h2o.auc(glm_fit1, train = TRUE)  #0.769786 
+h2o.auc(glm_fit1, valid = TRUE)  #0.7898805
+```
+
+
+

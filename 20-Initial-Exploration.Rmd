@@ -1,0 +1,515 @@
+---
+title: "20-Initial-Exploration"
+output: html_notebook
+---
+
+
+# Size
+
+```{r grouping the sizes}
+games <- games %>%
+  mutate(size_MB = size/ 10^6) %>%
+  mutate(size_group = case_when(size_MB < 10 ~ "< 10MB",
+                                size_MB < 100 ~ "10-100MB",
+                                size_MB < 200 ~ "100-200MB",
+                                size_MB < 500 ~ "200-500MB",
+                                size_MB < 1000 ~ "500-1000MB",
+                                TRUE ~ "> 1000MB")) %>%
+  mutate(size_group = factor(size_group, levels = c("< 10MB","10-100MB","100-200MB","200-500MB","500-1000MB","> 1000MB")))
+```
+
+```{r graph of the game sizes of the Top 10% games, eval = F}
+size_intervals_top_10 <- games %>% 
+  arrange(-user_rating_count) %>% 
+  slice(1: (0.1 * nrow(games)))%>%
+  group_by(size_group) %>% 
+  summarise(n = n())
+
+size_intervals_top_10
+
+ggplot(size_intervals_top_10, aes(x=size_group, y = n))+
+  geom_col(fill = "blue", alpha = 0.5)+
+  xlab("game size")+
+  ylab("Top 10%")+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r size distributions of games in 2018 and 2019}
+all_size <- games %>% filter(release_year == 2018 | release_year == 2019) %>% 
+  mutate(group = case_when(release_year == 2018 ~ "all_2018",
+                           release_year == 2019 ~ "all_2019"))
+
+games %>% 
+  arrange(-user_rating_count) %>% 
+  slice(1: (0.1 * nrow(games)))%>%
+  filter(release_year == 2018 | release_year == 2019) %>% 
+  mutate(group = case_when(release_year == 2018 ~ "top_2018",
+                           release_year == 2019 ~ "top_2019")) %>% 
+  bind_rows(all_size) %>% 
+  ggplot(aes(x = group, y = size_MB, color = group))+
+  geom_boxplot()+
+  scale_y_continuous(name = "Size (MB)", limits = c(0,500))+
+  scale_x_discrete(name = " ", labels = c("All games in 2018", "All games in 2019", "Top games in 2018", "Top games in 2019"))+
+  theme_classic()+
+  scale_color_manual(values = c("#F8766D","#F8766D","#00BFC4","#00BFC4"))+
+  guides(color=FALSE)
+```
+
+
+
+# Age
+
+### Age versus number of User Ratings
+```{r Age Versus User rating count}
+unique(games$age)
+games %>% arrange(-user_rating_count) %>%
+  mutate(group = "all") %>%
+  bind_rows(games %>%
+  arrange(-user_rating_count) %>%
+  slice(1: (0.1 * nrow(games)))%>%
+  mutate(group = "top")) %>%
+  group_by(age, group) %>%
+  summarise(count = n()) %>%
+  mutate(share = case_when(group == "all" ~ (count / 7561),
+                           group == "top" ~ (count/756))) %>%
+  ggplot(aes(x = as.factor(age), y = share, group = group, color = group, fill = group))+
+  geom_bar(stat = 'identity', position = 'dodge')+
+  theme_classic()+
+  scale_y_continuous(name = "Proportion")+
+  scale_x_discrete(labels = c("4+","9+","12+","17+"), name = "Content rating")+
+  scale_fill_manual(name = "", labels = c("All","Top"),values = c("#EFC000FF","#0073C2FF"))+
+  scale_color_manual(name = "", labels = c("All","Top"),values = c("#EFC000FF","#0073C2FF"))+
+  theme(legend.position = "top")
+```
+
+
+```{r Age Versus User rating count, in yearly trend}
+games %>%
+  arrange(-user_rating_count) %>%
+  slice(1: (0.1 * nrow(games))) %>%
+  group_by(release_year,age) %>%
+  summarise(count = n()) %>%
+  filter(release_year != 2019) %>%
+  ggplot(aes(x = as.factor(release_year), y = count, group = as.factor(age), color = as.factor(age)))+
+  geom_line(aes(color = as.factor(age), size = as.factor(age),linetype = as.factor(age)))+
+  scale_linetype_manual(values=c("longdash", "longdash","solid","dashed"),name = "", labels = c("4+","9+","12+","17+"))+
+  scale_color_manual(values=c("lightblue3", "goldenrod2","#F8766D","grey65"),name = "", labels = c("4+","9+","12+","17+"))+
+  scale_size_manual(values=c(1,1,1.12,0.9),name = "", labels = c("4+","9+","12+","17+"))+
+  scale_x_discrete(name = "Release year")+
+  scale_y_continuous(name = "The number of games")+
+  theme_classic()
+```
+
+
+# Language
+```{r how does "multiple languages" affect size}
+games_sizes_language <- apps_game %>%
+  mutate(size_MB = size/ 10^6) %>%
+  select(languages, size_MB) 
+
+ggplot(games_sizes_language, aes(x = languages, y = size_MB)) +
+  geom_count(alpha = 0.5, fill = "yellow")
+```
+
+```{r}
+games_l <- data.frame(games, language_dummy)
+
+l1 <- games_l %>% 
+  arrange(-user_rating_count) %>% 
+  slice(1: (0.1 * nrow(games)))%>%
+  summarise(English = mean(EN),
+            Chinese = mean(ZH),
+            German = mean(DE),
+            French = mean(FR),
+            Spanish = mean(ES),
+            Japanese = mean(JA),
+            Russian = mean(RU),
+            Italian = mean(IT),
+            Portuguese = mean(PT),
+            Korean = mean(KO)) 
+  
+
+l2 <- games_l %>% 
+  summarise(English = mean(EN),
+            Chinese = mean(ZH),
+            German = mean(DE),
+            French = mean(FR),
+            Spanish = mean(ES),
+            Japanese = mean(JA),
+            Russian = mean(RU),
+            Italian = mean(IT),
+            Portuguese = mean(PT),
+            Korean = mean(KO))
+groups = c("top","all")
+groups = data.frame(groups)
+
+l1 <- l1 %>% bind_rows(l2) %>% bind_cols(groups)
+
+l1 <- pivot_longer(l1,cols = English : Korean, names_to = "language",values_to = "value")
+
+
+
+l1 %>% filter(language != "English") %>% arrange()%>% ggplot(aes(x = reorder(language, -value), y = value, fill = groups))+
+  geom_bar(stat = 'identity',position = 'dodge')+
+  scale_y_continuous(name = "Proportion")+
+  scale_x_discrete(name = "Languages")+
+  scale_fill_manual(values = c("#EFC000FF","#0073C2FF"),name = "",labels = c("All","Top"))+
+  theme_classic()+
+  theme(legend.position = "top")
+```
+
+
+# Year Updated
+
+### Year updated versus number of ratings in Top 10 % group and All. 
+```{r Year updated Versus User rating count (in top 10% by year)}
+
+games_10percpopular <- games %>%
+  arrange(desc(user_rating_count))%>%
+  filter(user_rating_count > quantile(user_rating_count, .9))
+
+
+games_10percrate <- games %>%
+  arrange(desc(average_user_rating))%>%
+  slice(seq(n()*.1))
+
+games_10percpopular$year_updated <- format(games_10percpopular$current_version_release_date, "%Y")
+
+years <- factor(games_10percpopular$year_updated)
+
+
+ggplot(games_10percpopular, aes(x = years, y = user_rating_count)) +
+  scale_y_log10(labels = comma) +
+  geom_boxplot(fill = "skyblue") +
+  theme_fivethirtyeight() +
+  theme(plot.title = element_text(hjust = 0.5, vjust = 2)) +
+  labs(title = "Last Updated Apps by Years Among Top 10% User Rating Count")
+```
+
+```{r Year updated Versus User rating count (in all by year)}
+games$year_updated <- format(games$current_version_release_date, "%Y")
+
+years <- factor(games$year_updated)
+
+
+ggplot(games, aes(x = years, y = user_rating_count)) +
+  scale_y_log10(labels = comma) +
+  geom_boxplot(fill = "skyblue") +
+  theme_fivethirtyeight() +
+  theme(plot.title = element_text(hjust = 0.5, vjust = 2)) +
+  labs(title = "Last Updated Apps by Years")
+
+```
+
+# Price and in-app purchases
+
+### Price vs Average User Rating
+```{r price vs average user rating}
+png(filename="price_aur.png")
+games %>%
+  filter(price < quantile(games$price, 0.9997)) %>% #Bottom 99.97% of pric dist
+  ggplot(aes(average_user_rating, price)) +
+    geom_point()+
+    geom_jitter()+
+    labs(title="Increase in Average User Rating with Increase in Price", 
+         x="Average User Rating", y = "Price (USD)")+
+    theme_classic()
+    
+dev.off()
+```
+used coloring for genre
+
+```{r color for genre}
+games %>%
+  filter(price < 25) %>%
+  ggplot(aes(average_user_rating, price)) +
+    geom_point(aes(color = specific_primary_genre))+
+    geom_jitter(aes(color = specific_primary_genre))
+```
+
+### Price vs total user rating
+```{r price vs total user rating}
+png(filename="price_tur.png")
+games %>%
+  filter(price < quantile(games$price, 0.9997),user_rating_count < quantile(games$user_rating_count, 0.9997) ) %>%
+  ggplot(aes(price, user_rating_count)) +
+    geom_point()+
+    geom_jitter()+
+    scale_y_continuous(labels = scales::comma)+
+    labs(title="Total number of ratings decreases as price increases", 
+         x="Price", y = "Total Ratings")+
+  theme_classic()
+dev.off()
+    
+```
+
+```{r adding color for avg user rating}
+games %>%
+  filter(price < 25, user_rating_count > 1000, user_rating_count < 500000) %>%
+  ggplot(aes(price, user_rating_count)) +
+    geom_point(aes(color = average_user_rating))+
+    geom_jitter(aes(color = average_user_rating))+
+    scale_color_gradient(low = "red", high = "green")
+```
+
+### Price vs avg user rating
+```{r added color for tot user count}
+games %>%
+  filter(price < 25, user_rating_count > 1000, user_rating_count < 500000) %>%
+  ggplot(aes(average_user_rating, price)) +
+    geom_point(aes(color = user_rating_count))+
+    geom_jitter(aes(color = user_rating_count))+
+    scale_color_gradient(low = "red", high = "green")
+```
+### taking top 20% of user rating count
+
+```{r top 20% of data}
+games %>%
+  top_frac(0.2, user_rating_count) %>%
+  select(user_rating_count, everything()) %>%
+  arrange(user_rating_count) %>%
+  filter(price < 25, user_rating_count < 1000000) %>%
+  ggplot(aes(price, user_rating_count)) +
+  geom_point(aes(col = average_user_rating))+
+  geom_jitter(aes(col = average_user_rating))
+```
+
+### Placing price into categories
+```{r price categories}
+breaks <- c(-Inf, 0.5, 5, 7, 11, Inf)
+names <- c("Free", "$1-$3", "$4-$6", "$7-$10", "$10+")
+games$price.cat <- cut(games$price, breaks = breaks, labels = names)
+
+games %>%
+  top_frac(0.2, user_rating_count) %>%
+  ggplot(aes(price.cat)) +
+  geom_histogram(stat = "count")
+```
+
+```{r new categories}
+breaks2 <- c(-Inf, 0.5, 5, Inf)
+names2 <- c("Free", "$1-$5", "5+")
+games$price.cat2 <- cut(games$price, breaks = breaks2, labels = names2)
+
+games %>%
+  top_frac(0.2, user_rating_count) %>%
+  ggplot(aes(price.cat2)) +
+  geom_histogram(stat = "count")
+```
+
+### Top 10 compared to total
+```{r in-app purch proportions}
+#top 10% of games by user_rating_count
+games2 <- games %>%
+  top_frac(0.1, user_rating_count)
+
+games3 <- games %>%
+  top_frac(-0.9, user_rating_count)
+
+# table that contains dummy variable for in app purchasing
+in_app_purch <- table(games2$in_app_purchasing)
+in_app_purch
+
+
+# proportion of games with in app purchasing top 10
+in_app_prop <- round(prop.table(in_app_purch),digits=4)
+in_app_prop <- data.frame(in_app_prop)
+
+# proportion of games with in app purchasing for whole data set
+in_app_purch2 <- table(games$in_app_purchasing)
+in_app_purch2
+
+
+in_app_prop2 <- round(prop.table(in_app_purch2),digits=4)
+
+in_app_prop2 <- data.frame(in_app_prop2)
+
+```
+
+```{r comparing prop for both groups}
+#top 10%
+in_app_prop_s1 <- in_app_prop[in_app_prop$Var1 == "1" ,]
+
+# total data set
+in_app_prop2_s1 <- in_app_prop2[in_app_prop2$Var1 == "1",]
+
+# combining proportion for top 10 and total
+combined_prop <- bind_rows(in_app_prop_s1, in_app_prop2_s1)
+combined_prop$Group <- ifelse(combined_prop$Freq > 0.65, c("Top"), c("All"))
+# plot for in-app proportions
+png(filename="inapp_prop_all.png")
+ggplot(combined_prop)+
+  geom_bar(aes(x = Group, y = Freq, group = Group, fill = Group), stat = 'identity')+
+  scale_y_continuous(breaks = c(0, 0.2, 0.4, 0.6, 0.8, 1.0), limits = c(0,1))+
+  labs(title= "Proportion of apps with in-app purchases for total market and top 10%",y = "Proportion")+
+   scale_fill_manual(values = c("#EFC000FF","#0073C2FF"))+
+  theme_classic()
+dev.off()
+```
+
+```{r price dist}
+#pricing distribution
+apps_game2 <- apps_game %>%
+  filter(price < 10)
+ggplot()+
+  geom_density(data = games2, aes(x=price), fill = "blue", alpha = 0.2)+
+  geom_density(data = apps_game2, aes(x=price), fill = "red", alpha = 0.2)
+  
+```
+
+```{r combine data for price dist}
+#combining top 10 and total data for price
+combined_price <- bind_rows(games2, games)
+combined_price$Group <- ifelse(combined_price$user_rating_count > 2512, c("Top"), c("All"))
+combined_price <- combined_price %>%
+  filter(price < quantile(combined_price$price, 0.95))#bottom 95% of price dist
+
+png(filename="price_dist_all.png")
+ggplot(combined_price, aes(x = price, fill = Group))+
+  geom_density(alpha=0.6)+
+  theme_classic()+
+  labs(title = "Pricing distribution for total market and top 10%",x="Price", y = "Density")+
+  scale_fill_manual(values = c("#EFC000FF","#0073C2FF"))
+dev.off()  
+```
+
+```{r another price dist}
+combined_price <- bind_rows(games2, games)
+combined_price$Group <- ifelse(combined_price$user_rating_count > 2512, c("Top"), c("All"))
+combined_price95 <- combined_price %>%
+  filter(price < quantile(combined_price$price, 0.95)) %>%
+  arrange(-price)
+
+png(filename="price_dist2.png")
+ggplot(combined_price95, aes(x = price, fill = Group))+
+  geom_density(alpha=0.2)+
+  theme_classic()+
+  labs(x="Price", y = "Density")
+dev.off()
+```
+
+# Bottom 90 compared to top 10
+```{r combine price for top 10 and bot 90}
+combined_price2 <- bind_rows(games2, games3)
+combined_price2$Group <- ifelse(combined_price2$user_rating_count > 2512, c("Top 10%"), c("Bottom 90%"))
+combined_price2 <- combined_price2 %>%
+  filter(price < quantile(combined_price$price, 0.95)) %>%
+  arrange(-price)
+
+png(filename="price_dist.png")
+ggplot(combined_price2, aes(x = price))+
+  geom_density(aes(fill = Group), alpha=0.6)+
+  theme_classic()+
+  labs(title="Pricing distribution for bottom 90% and top 10%", x="Price", y = "Density")+
+  scale_fill_manual(values = c("#EFC000FF","#0073C2FF"))
+dev.off()
+```
+
+```{r in-app purch prop for bot 90}
+#Proportion of games with in-app purchases for bottom 90%
+in_app_purch3 <- table(games3$in_app_purchasing)
+in_app_purch3
+
+
+in_app_prop3 <- round(prop.table(in_app_purch3),digits=4)
+
+in_app_prop3 <- data.frame(in_app_prop3)
+
+in_app_prop3_s1 <- in_app_prop3[in_app_prop3$Var1 == "1",]
+
+# combining proportion for top 10 and bottom 90
+combined_prop2 <- bind_rows(in_app_prop_s1, in_app_prop3_s1)
+combined_prop2$Group <- ifelse(combined_prop2$Freq > 0.70, c("Top 10%"), c("Bottom 90%"))
+
+png(filename="inapp_prop.png")
+ggplot(combined_prop2)+
+  geom_bar(aes(x = Group, y = Freq, group = Group, fill = Group), stat = 'identity')+
+  scale_y_continuous(breaks = c(0, 0.2, 0.4, 0.6, 0.8, 1.0), limits = c(0,1))+
+  labs(title="Proportion of apps with in-app purchases for bottom 90% and top 10%", y = "Proportion")+
+  scale_fill_manual(values = c("#EFC000FF","#0073C2FF"))+
+  theme_classic()
+dev.off()
+```
+
+
+# Description
+
+Let's check the most frequently used words for top 10% popular games
+```{r get the top 10% description of data set}
+games_text_top <- games %>% 
+  arrange(-user_rating_count) %>% 
+  slice(1: (0.1 * nrow(games))) %>% 
+  arrange(user_rating_count) %>% select(id, description, price) %>% 
+  unnest_tokens(word,description)
+
+```
+
+```{r exclude useless words}
+personal_stop_words <- stop_words %>% select(-lexicon) %>% 
+  bind_rows(data.frame(word = c("u2022", "u2019s","game","games","http","u0627","app")))
+games_text_top <- games_text_top %>% anti_join(personal_stop_words)
+```
+
+Free games top 10%
+```{r frequently used words for free games in top 10% group}
+games_text_top %>% 
+  filter(price == 0) %>% 
+  count(word, sort = T) %>% slice(1:15) %>% 
+  ggplot(aes(x = reorder(word, n, function(n) -n), y = n)) + 
+  geom_bar(stat = "identity", fill = "#0073C2FF", alpha = 0.8) + 
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) + 
+  xlab("Words")+
+  scale_y_continuous(name = "count")
+  
+```
+
+Paid game top10
+```{r frequently used words for paid games in top 10% group}
+games_text_top %>% 
+  filter(price != 0) %>% 
+  count(word, sort = T) %>% slice(1:15) %>% 
+  ggplot(aes(x = reorder(word, n, function(n) -n), y = n)) + 
+  geom_bar(stat = "identity", fill = "#0073C2FF", alpha = 0.8) + 
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) + 
+  xlab("Words")+
+  scale_y_continuous(name = "count")
+```
+
+
+```{r get the text data and exclude useless words}
+games_text <- games %>% 
+  select(id, description) %>% 
+  unnest_tokens(word,description)
+
+personal_stop_words <- stop_words %>% select(-lexicon) %>% 
+  bind_rows(data.frame(word = c("u2022", "u2019s","game","games","http","u0627","app")))
+games_text <- games_text %>% anti_join(personal_stop_words)
+```
+
+All games
+```{r frequently used words for all games group}
+games_text %>% 
+  count(word, sort = T) %>% slice(1:15) %>% 
+  ggplot(aes(x = reorder(word, n, function(n) -n), y = n)) + 
+  geom_bar(stat = "identity",fill = "#0073C2FF", alpha = 0.8) + 
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) + 
+  xlab("Words")+
+  scale_y_continuous(name = "count")
+```
+
+Top 10% games
+```{r frequently used words for top 10% group}
+games_text_top %>% 
+  count(word, sort = T) %>% slice(1:15) %>% 
+  ggplot(aes(x = reorder(word, n, function(n) -n), y = n)) + 
+  geom_bar(stat = "identity", fill = "#0073C2FF", alpha = 0.8) + 
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) + 
+  xlab("Words")+
+  scale_y_continuous(name = "count")
+```
+

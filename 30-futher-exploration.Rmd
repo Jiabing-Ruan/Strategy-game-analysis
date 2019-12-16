@@ -1,0 +1,183 @@
+---
+title: "30-futher-exploration"
+output: html_document
+---
+```{r library}
+library(ggpubr)
+```
+
+
+### Subgenres
+If we would like to develop a strategy game but don't know which types of strategy games are gonna to be more successful. Could we find some suggestions from our data?
+
+
+The most intensively competed types of strategy game
+```{r Subgenres in all games, fig.height= 6, fig.width=8}
+games %>%
+  group_by(specific_primary_genre) %>%
+  summarise(count = n()) %>%
+  arrange(-count) %>%
+  slice(1:10) %>%
+  mutate(type = factor(specific_primary_genre, levels = specific_primary_genre)) %>%
+  ggplot(aes(x = type, y = count))+
+  geom_col(fill = "#0073C2FF", alpha = 0.8)+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_y_continuous(name = "The number of games")+
+  scale_x_discrete(name = "Subgenre")
+```
+
+
+What are the 10 most popular types of strategy games?
+```{r Subgenres in top 10%}
+games %>%
+  group_by(specific_primary_genre) %>%
+  summarise(count = n(),
+            avg_rating_bycount = mean(user_rating_count)) %>%
+  arrange(-avg_rating_bycount) %>%
+  slice(1:10) %>%
+  mutate(type = factor(specific_primary_genre, levels = specific_primary_genre)) %>%
+  ggplot(aes(x = type, y = avg_rating_bycount))+
+  geom_col(fill = "#0073C2FF", alpha = 0.8)+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_y_continuous(name = "Average rating count")+
+  scale_x_discrete(name = "Specific types")
+```
+
+
+However, as we have discussed below, types like entertainment, action, board, role playing, adventure, are really popular and take a large share of customer market, and the competition is also very intensive.
+Therefore, we would also like to check the possibility that a specifity type of game is going to be successful.
+```{r Subgenres in proportion}
+total_count <- games %>%
+  group_by(specific_primary_genre) %>%
+  summarise(total = n())
+games %>%
+  arrange(-user_rating_count) %>%
+  slice(1: (0.1 * nrow(games)))%>%
+  group_by(specific_primary_genre) %>%
+  summarise(pop= n()) %>%
+  left_join(total_count) %>%
+  mutate(pop_total = pop/total) %>%
+  arrange(-pop_total) %>%
+  mutate(specific_primary_genre = factor(specific_primary_genre, levels = specific_primary_genre)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x = specific_primary_genre, y = pop_total))+
+  geom_bar(stat = "identity",fill = "#0073C2FF", alpha = 0.8)+
+  scale_y_continuous(name = "Proportion")+
+  scale_x_discrete(name = "Subgenre")+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+## Go further with the average user rating
+What if we want to have a popular and highly rated game? Let's check the rating for the 10 most popular types of strategy games
+```{r Subgenres in average user rating, fig.width=8, fig.height=6}
+poptype = c("Entertainment", "Role Playing", "Action","Simulation", "Card","Finance", "Navigation", "Racing", "Social Networking","Family")
+games %>%
+  group_by(specific_primary_genre) %>%
+  summarise(count = n(),
+            avg_rating = mean(average_user_rating)) %>%
+  filter(specific_primary_genre %in% poptype) %>%
+  arrange(-avg_rating) %>%
+  mutate(avg_rating_by_4 = avg_rating - 4,
+         type = factor(specific_primary_genre, levels = specific_primary_genre)) %>%
+  mutate(rating_group = factor(if_else(avg_rating_by_4 > 0, "Higer than 4", "Lower than 4"))) %>%
+  ggbarplot(x = "type",y = "avg_rating_by_4",fill = "rating_group", color = "white",palette = "jco",x.text.angle=60, legend.title = " ")+
+  scale_y_continuous(labels = function(x){x+4}, name = "Average rating")+
+  scale_x_discrete(name = "Subgenre")
+```
+
+
+Family, Social Networking, Finance, Card and Sports games are good choice. As these types of strategy game are with less competition but are really popular and have relatively high rating. Altough Navigation is a really popular type of game, if we would like to develop a game with high popularity as well as good rating, it may not be a good idea. Role playing, Action and Entertainment are not bad idea as those types of games are popular and relatively high rated. However, the competition is also more intensive.
+
+
+Overview: Average rating of different types of strategy games
+```{r Type in average user rating, fig.height= 7, fig.width= 9}
+games %>%
+  filter(user_rating_count >= 50) %>%
+  group_by(specific_primary_genre) %>%
+  summarise(count = n(),
+            avg_rating = mean(average_user_rating)) %>%
+  arrange(-avg_rating) %>%
+  mutate(avg_rating_by_4 = avg_rating - 4,
+         type = factor(specific_primary_genre, levels = specific_primary_genre)) %>%
+  mutate(rating_group = factor(if_else(avg_rating_by_4 > 0, "Higer than 4", "Lower than 4"))) %>%
+  ggbarplot(x = "type",y = "avg_rating_by_4",fill = "rating_group", color = "white",palette = "jco", legend.title = " ", rotate=TRUE)+
+  scale_y_continuous(labels = function(x){x+4})
+```
+
+
+Now, talking about the in App purchase:
+```{r Paid or free games}
+games %>%
+  filter(price < 25) %>%
+  ggplot(aes(y = price, x = average_user_rating))+
+  geom_jitter()+
+  theme_classic()+
+  scale_x_continuous(name = "Average user rating")+
+  scale_y_continuous(name = "Price")
+```
+
+```{r In app purchase}
+games %>% mutate(in_app_purchases = if_else(is.na(in_app_purchases), "Yes", "NO")) %>%
+  ggplot(aes(x = in_app_purchases, y = average_user_rating,color = in_app_purchases))+
+  geom_boxplot()+
+  geom_jitter(aes(color =in_app_purchases),alpha = 0.08,width= 0.1,height = 0.2)+
+  theme_classic()+
+  scale_x_discrete(name = "In app purchases")+
+  scale_y_continuous(name = "Average rating", limits = c(0,5))+
+  scale_color_manual(values = c("#EFC000FF","#0073C2FF"), name = " ")+
+  theme(legend.position = "top")
+```
+
+
+```{r Year updated Versus Average user rating (By year)}
+games$year_updated <- format(games$current_version_release_date, "%Y")
+
+years <- factor(games$year_updated)
+
+
+ggplot(games, aes(x = years, y = average_user_rating)) +
+  scale_y_log10(labels = comma) +
+  geom_boxplot(fill = "skyblue") +
+  theme_fivethirtyeight() +
+  theme(plot.title = element_text(hjust = 0.5, vjust = 2)) +
+  labs(title = "Last Updated Apps by Years")
+
+```
+
+```{r Age Versus Average user rating (top 10%)}
+# age group again versus average_user_rating among the top 10 percent
+games_10percpopular <- games %>%
+  arrange(desc(user_rating_count))%>%
+  filter(user_rating_count > quantile(user_rating_count, .9))
+
+games_10percrate <- games %>%
+  arrange(desc(average_user_rating))%>%
+  slice(seq(n()*.1))
+
+games_10percrate %>%
+  filter(!is.na(average_user_rating)) %>%
+  ggplot(aes(x = fct_rev(as.factor(average_user_rating)))) +
+  geom_bar() +
+  labs(title = "Age Versus Average User Rating Among Top 10 Percent for Popularity") +
+  facet_wrap(~ fct_infreq(as.factor(age)))
+
+```
+
+
+```{r Age Versus Average user rating}
+# age group again versus average_user_rating
+games %>%
+  filter(!is.na(average_user_rating)) %>%
+  ggplot(aes(x = fct_rev(as.factor(average_user_rating)))) +
+  geom_bar() +
+  labs(title = "Age Versus Average User Rating") +
+  facet_wrap(~ fct_infreq(as.factor(age)))
+
+```
+
+
+

@@ -1,0 +1,209 @@
+---
+title: "10-data-cleaning"
+output: html_notebook
+---
+# Introduction
+We investigate the variables that are important to our project.
+
+## import package
+```{r}
+library(scales)
+library(forcats)
+library(dplyr)
+library(ggpubr)
+library(tidyverse)
+library(readr)
+library(janitor)
+library(lubridate)
+library(nnet)
+library(assertr)
+library(tidyverse)
+library(tidytext)
+library(textdata)
+library(data.table)
+library(ggthemes)
+library(scales)
+library(forcats)
+library(dplyr)
+library(ggpubr)
+```
+
+## import data
+```{r}
+apps_game <- read_csv("appstore_games.csv") %>% clean_names()
+games <- apps_game
+```
+
+## Data cleaning
+
+
+### Drop useless or biased data
+
+1. Games without User Rating or rating count should be dropped.
+```{r}
+games <- games %>% filter(!is.na(user_rating_count)) %>% filter(!is.na(average_user_rating))
+```
+
+2. Drop useless variables for our project including 'url' and 'icon_url'
+```{r}
+games <- games %>% 
+  select(everything(),-url,-icon_url)
+```
+
+
+Top 10% 
+
+```{r}
+games %>% 
+  arrange(-user_rating_count) %>% 
+  slice(1: (0.11 * nrow(games))) %>% 
+  arrange(user_rating_count)
+```
+
+
+
+
+### fill NA values
+We don't need to fill the NA value in subtitle, in_app_purchases, languages rigt now.
+
+For price, we should replace NA by 0
+```{r}
+games[is.na(games$price),"price"] <- 0
+```
+
+
+## Data minipulation
+
+### age into numeric format
+```{r}
+age <- as.numeric(str_extract(games$age_rating,"[0-9]*"))
+
+games <- data.frame(games, age)
+
+games <- games %>% 
+  select(everything(), -age_rating)
+
+```
+
+### processing language
+```{r}
+language <- str_split(games$languages,", ")
+unique(unlist(language))
+## Since there are so many languages, only choose the most frequently used language as dummy variables
+
+languages <- na.omit(data.frame(unlist(language)))
+languages %>% 
+  group_by(unlist.language.) %>% 
+  summarise(count = n()) %>%
+  arrange(-count) # I will only pick top 10 frequently used language because there is a sharp decrease after top 10
+```
+
+Change it into dummy varibles 
+```{r}
+language_top <- c("EN","ZH","DE","FR","ES","JA","RU","IT","PT","KO") # create language list
+
+language_dummy <- as.data.frame(matrix(NA, nrow = nrow(games), ncol = 10))
+
+names(language_dummy) <- language_top
+
+for (j in seq_along(language)){
+  for (i in seq_along(language_top)){
+    if (language_top[i] %in% language[[j]]){
+      language_dummy[j,i] = 1
+    }
+    else language_dummy[j,i] = 0
+  }
+}
+# Now we successfully get dummy variables for language
+```
+
+### change the data into lubridate version that could be easier to use
+```{r}
+games <- games %>% 
+  mutate(original_release_date = dmy(original_release_date),
+         current_version_release_date = dmy(current_version_release_date))
+
+# get the release year
+games <- games %>% 
+  mutate(release_year = year(original_release_date))
+
+# current_version_release_date
+
+```
+
+### processing in game purchase
+```{r}
+in_app_p <- str_split(games$in_app_purchases,", ")
+unique(unlist(in_app_p))
+# So many values
+
+# We could create a column to determine whether it has in app purchase or not
+games <- games %>% 
+  mutate(in_app_purchasing = if_else(is.na(in_app_purchases), 0,1)
+  )
+```
+
+### Re-determine the primary specific genre of the game
+
+Since all the games belong to strategic games, we don't think 'Strategy' or 'Games ' should be the specific main genre of one game. 
+
+After we look at the 'primary_genre' and 'genres' columns, we may determin the first word except for 'Games' and 'Strategy' as the primary specific genre of the game.
+
+However, if the game only contains "Games" and "Strategy", we should determine it as 'pure' strategy game.
+
+```{r}
+genre_list <- str_split(games$genres,", ")
+
+specific_primary_genre <- rep(NA, length = nrow(games))
+
+for (i in seq_along(genre_list)){
+  if (length(genre_list[[i]]) == 2 & 
+      genre_list[[i]][[1]] %in% c("Games","Strategy") & 
+      genre_list[[i]][[2]] %in% c("Games","Strategy")){
+    specific_primary_genre[i] = "Strategy"
+  }
+  else if (genre_list[[i]][[1]] %in% c("Games","Strategy") & genre_list[[i]][[2]] %in% c("Games","Strategy")){
+    specific_primary_genre[i] = genre_list[[i]][[3]]
+  }
+  else if (genre_list[[i]][[1]] %in% c("Games","Strategy")) {
+    specific_primary_genre[i] = genre_list[[i]][[2]]
+  }
+  else {specific_primary_genre[i] = genre_list[[i]][[1]]}
+}
+
+games <- data.frame(games, specific_primary_genre)
+```
+
+size to size_MB
+
+```{r}
+games <- games %>%
+  mutate(size_MB = size/ 10^6)
+```
+
+
+
+
+the density of the number of ratings
+
+```{r}
+games %>% 
+  ggplot(aes(x = log10(user_rating_count)))+
+  geom_density(kernel = "epanechnikov",adjust = 0.5)+
+  theme_classic()+
+  scale_y_continuous(name = "Density")+
+  scale_x_continuous(breaks = seq(0,6,1),name = "The number of ratings (in log10 scales)")
+
+```
+
+```{r}
+games %>% 
+  ggplot(aes(x = log10(user_rating_count), y = size_MB))+
+  geom_point()+
+  theme()+
+  scale_x_continuous(breaks = seq(0,6,1),name = "The number of ratings (in log10 scales)")+
+  scale_y_continuous(name = "size (MB)") +
+  theme_classic()
+```
+
+
