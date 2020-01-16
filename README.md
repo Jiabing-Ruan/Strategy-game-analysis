@@ -9,7 +9,7 @@ This is the data of 17007 strategy games on the Apple App Store. It was collecte
 # Overview
 The mobile games industry is worth billions of dollars, with companies spending vast amounts of money on the development and marketing of these games to an equally large market. Using this data set, insights can be gained into a sub-market of this market, strategy games. This sub-market includes titles such as Clash of Clans, Plants vs Zombies and Pokemon GO.
 
-# What we plan to do
+# What I did
 Main Thesis: 
 
 Observe what variables attribute to the success of an App store game.
