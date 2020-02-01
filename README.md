@@ -1,6 +1,6 @@
 # Strategy-game-analysis
 
-# Final Report: 
+# Final Report: https://github.com/Jiabing-Ruan/Strategy-game-analysis/blob/master/Making%20a%20Successful%20Strategy%20game%20for%20the%20Apple%20App%20Store.pdf
 # Data Scource
 Kaggle. Link: https://www.kaggle.com/tristan581/17k-apple-app-store-strategy-games
 
